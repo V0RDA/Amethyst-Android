@@ -1,0 +1,126 @@
+// Модуль-библиотека движка для лаунчера VORDA (форк Amethyst-Android, GNU LGPL-3.0).
+// Берёт исходники движка upstream из app_pojavlauncher как есть (Java, JNI, ресурсы, компоненты),
+// но собирается как AAR без лаунчерного манифеста upstream и добавляет узкий API ru.playvorda.engine.VordaEngineApi.
+// Публикуется Maven-репозиторием (build/repo) — POM несёт Maven-зависимости движка.
+// Локальные AAR upstream (MobileGlues, SDL, натив LWJGL, OpenAL…) AGP не позволяет вкладывать в библиотеку —
+// они здесь compileOnly, а CI выкладывает их рядом (engine-bundle), лаунчер подключает их сам.
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+}
+
+def upstream = file('../app_pojavlauncher')
+def engineVersion = System.getenv('VORDA_ENGINE_VERSION') ?: '0.1.0-SNAPSHOT'
+
+android {
+    // Тот же пакет, что у upstream: код движка ссылается на net.kdt.pojavlaunch.R и BuildConfig.
+    namespace 'net.kdt.pojavlaunch'
+    compileSdk = 37
+    ndkVersion = "27.3.13750724"
+
+    defaultConfig {
+        minSdkVersion 26
+        consumerProguardFiles 'consumer-rules.pro'
+        buildConfigField 'String', 'VERSION_NAME', "\"vorda-engine-${engineVersion}\""
+        buildConfigField 'int', 'VERSION_CODE', '1'
+        // Строки, которые upstream задаёт через resValue в приложении.
+        resValue 'string', 'curseforge_api_key', 'DUMMY'
+        resValue 'string', 'app_name', 'VORDA'
+        resValue 'string', 'app_short_name', 'VORDA'
+        resValue 'string', 'application_package', 'ru.playvorda.android'
+        resValue 'string', 'storageProviderAuthorities', 'ru.playvorda.android.engine.gamefolder'
+        resValue 'string', 'shareProviderAuthority', 'ru.playvorda.android.engine.controlfolder'
+        ndk { abiFilters 'arm64-v8a' } // Java Edition на телефоне — только arm64
+        externalNativeBuild {
+            ndkBuild {
+                // APP_SUPPORT_FLEXIBLE_PAGE_SIZES — выравнивание .so под страницы 16 КБ (требование Google Play).
+                arguments "APP_SHORT_COMMANDS=true", "APP_SUPPORT_FLEXIBLE_PAGE_SIZES=true"
+            }
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+            java.srcDirs = ["$upstream/src/main/java", 'src/main/java']
+            res.srcDirs = ["$upstream/src/main/res"]
+            assets.srcDirs = ["$upstream/src/main/assets"]
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild { path file("$upstream/src/main/jni/Android.mk") }
+    }
+
+    androidResources {
+        // Агент arc_dns_injector (направляет плащи на сторонний адрес) в движок VORDA не входит.
+        ignoreAssetsPatterns += ['!arc_dns_injector']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        prefab true
+        buildConfig true
+        resValues true
+    }
+
+    publishing {
+        singleVariant('release')
+    }
+
+    lint { abortOnError false }
+}
+
+afterEvaluate {
+    // Компоненты (LWJGL-заглушка GLFW, MioLibPatcher, forge_installer) собираются в assets/components upstream.
+    def componentJars = [":forge_installer:jar", ":MioLibPatcher:jar", ":jre_lwjgl3glfw:jar"]
+    tasks.withType(com.android.build.gradle.tasks.MergeSourceSetFolders).configureEach { it.dependsOn(componentJars) }
+    tasks.matching { it.name.toLowerCase().contains("lint") }.configureEach { it.dependsOn(componentJars) }
+
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = 'ru.playvorda'
+                artifactId = 'vorda-engine'
+                version = engineVersion
+            }
+        }
+        repositories {
+            maven { url = layout.buildDirectory.dir('repo') }
+        }
+    }
+}
+
+dependencies {
+    // Как у upstream app_pojavlauncher (Maven).
+    implementation 'javax.annotation:javax.annotation-api:1.3.2'
+    implementation 'commons-codec:commons-codec:1.15'
+    implementation 'androidx.preference:preference:1.2.0'
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+    implementation 'androidx.viewpager2:viewpager2:1.1.0-beta01'
+    implementation 'androidx.annotation:annotation:1.5.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'com.github.duanhong169:checkerboarddrawable:1.0.2'
+    implementation 'com.github.PojavLauncherTeam:portrait-sdp:ed33e89cbc'
+    implementation 'com.github.PojavLauncherTeam:portrait-ssp:6c02fd739b'
+    implementation 'com.github.Mathias-Boulay:ExtendedView:1.0.0'
+    implementation 'com.github.Mathias-Boulay:android_gamepad_remapper:2.0.3'
+    implementation 'com.github.Mathias-Boulay:virtual-joystick-android:1.14'
+    implementation 'org.tukaani:xz:1.8'
+    implementation 'net.sourceforge.htmlcleaner:htmlcleaner:2.6.1'
+    implementation 'com.bytedance:bytehook:1.0.10'
+    implementation 'top.fifthlight.touchcontroller:proxy-client-android:0.0.4'
+    implementation "net.java.dev.jna:jna:5.14.0@aar"
+    implementation project(':androidnsbypass')
+    // Локальные jar upstream упаковываются в AAR как обычно.
+    implementation fileTree(dir: "$upstream/libs", include: ['*.jar'])
+    // Локальные AAR — только для компиляции; в APK их кладёт лаунчер (engine-bundle из CI).
+    compileOnly fileTree(dir: "$upstream/libs", include: ['*.aar'])
+}
+
+apply from: rootProject.file('gradle/prefab_bypass.gradle')

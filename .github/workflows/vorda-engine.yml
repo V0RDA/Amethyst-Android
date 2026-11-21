@@ -1,0 +1,99 @@
+# Сборка движка для лаунчера VORDA (форк Amethyst-Android, GNU LGPL-3.0).
+# Результат — артефакт vorda-engine-bundle:
+#   repo/        Maven-репозиторий ru.playvorda:vorda-engine (AAR + POM с зависимостями)
+#   aars/        нативные AAR upstream (MobileGlues, SDL, LWJGL natives, OpenAL, Kopper Zink…) — их кладёт в APK лаунчер
+#   assets/engine-runtimes/  Java 17 и 21 для arm64 (.tar.xz) из AngelAuraMC/angelauramc-openjdk-build — в assets APK
+#   VERSION      версия движка (для зависимости ru.playvorda:vorda-engine)
+#   SHA256SUMS   контрольные суммы всех файлов пакета — лаунчер сверяет их при подключении
+# Секреты не нужны: ключи подписи upstream удалены из форка, APK движок не собирает.
+name: VORDA engine
+
+on:
+  push:
+    branches: [ 'vorda/**' ]
+    tags: [ 'vorda-engine-*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # только для выпуска релиза по тегу
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      VORDA_ENGINE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('0.1.0-{0}', github.run_number) }}
+    steps:
+      - name: Checkout (с сабмодулями SDL, MobileGlues, MioLibPatcher, androidnsbypass)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Java 17 для Android (arm64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          workflow: build.yml
+          repo: AngelAuraMC/angelauramc-openjdk-build
+          branch: buildjre17-21
+          name: jre17-pojav
+          path: dl/jre17
+          workflow_conclusion: completed
+
+      - name: Java 21 для Android (arm64)
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          workflow: build.yml
+          repo: AngelAuraMC/angelauramc-openjdk-build
+          branch: buildjre17-21
+          name: jre21-pojav
+          path: dl/jre21
+          workflow_conclusion: completed
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.1"
+
+      - name: Сборка движка (AAR) и Maven-репозиторий
+        run: |
+          gradle :vorda_engine:assembleRelease :vorda_engine:publishReleasePublicationToMavenRepository --stacktrace
+
+      - name: Пакет vorda-engine-bundle
+        run: |
+          set -euo pipefail
+          B=out/vorda-engine-bundle
+          mkdir -p "$B/aars" "$B/assets/engine-runtimes"
+          cp -r vorda_engine/build/repo "$B/repo"
+          cp app_pojavlauncher/libs/*.aar "$B/aars/"
+          # Из архивов JRE берём только arm64 (имя вида jre17-arm64-*.tar.xz) и называем единообразно.
+          for v in 17 21; do
+            f=$(find dl/jre$v -type f -name "*arm64*.tar.xz" | head -1)
+            test -n "$f" || { echo "Нет arm64 JRE $v"; find dl/jre$v -type f; exit 1; }
+            cp "$f" "$B/assets/engine-runtimes/jre$v-arm64.tar.xz"
+          done
+          (cd "$B/assets/engine-runtimes" && sha256sum *.tar.xz > SHA256SUMS)   # лаунчер сверяет JRE перед установкой
+          echo "$VORDA_ENGINE_VERSION" > "$B/VERSION"
+          cp LICENSE "$B/LICENSE-LGPL-3.0.txt"
+          cp VORDA.md "$B/"
+          (cd "$B" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          cat "$B/SHA256SUMS"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vorda-engine-bundle
+          path: out/vorda-engine-bundle
+          if-no-files-found: error
+
+      - name: Релиз по тегу
+        if: github.ref_type == 'tag'
+        run: |
+          cd out && zip -qr "vorda-engine-bundle-${VORDA_ENGINE_VERSION}.zip" vorda-engine-bundle
+          sha256sum "vorda-engine-bundle-${VORDA_ENGINE_VERSION}.zip" > "vorda-engine-bundle-${VORDA_ENGINE_VERSION}.zip.sha256"
+          gh release create "${GITHUB_REF_NAME}" "vorda-engine-bundle-${VORDA_ENGINE_VERSION}.zip"* \
+            --title "VORDA engine ${VORDA_ENGINE_VERSION}" --notes-file ../VORDA.md
+        env:
+          GH_TOKEN: ${{ github.token }}

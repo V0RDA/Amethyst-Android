@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Манифест библиотеки движка VORDA: без экранов, иконки и провайдеров лаунчера upstream.
+     Окно игры (GameActivity, процесс :game), разрешения и компоненты объявляет приложение VORDA. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+</manifest>

@@ -24,3 +24,6 @@ include ':arc_dns_injector'
 include ':MioLibPatcher'
 include ':forge_installer'
 include ':androidnsbypass'
+
+// VORDA: модуль-библиотека движка (форк, LGPL-3.0)
+include ':vorda_engine'
