@@ -2,7 +2,7 @@
 # Результат — артефакт vorda-engine-bundle:
 #   repo/        Maven-репозиторий ru.playvorda:vorda-engine (AAR + POM с зависимостями)
 #   aars/        нативные AAR upstream (MobileGlues, SDL, LWJGL natives, OpenAL, Kopper Zink…) — их кладёт в APK лаунчер
-#   assets/engine-runtimes/  Java 17 и 21 для arm64 (.tar.xz) из AngelAuraMC/angelauramc-openjdk-build — в assets APK
+#   assets/engine-runtimes/  Java 17 и 21 для arm64 (.tar.xz) из релизов AngelAuraMC/angelauramc-openjdk-build (SHA-256 вшиты) — в assets APK
 #   VERSION      версия движка (для зависимости ru.playvorda:vorda-engine)
 #   SHA256SUMS   контрольные суммы всех файлов пакета — лаунчер сверяет их при подключении
 # Секреты не нужны: ключи подписи upstream удалены из форка, APK движок не собирает.
@@ -34,25 +34,16 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Java 17 для Android (arm64)
-        uses: dawidd6/action-download-artifact@v9
-        with:
-          workflow: build.yml
-          repo: AngelAuraMC/angelauramc-openjdk-build
-          branch: buildjre17-21
-          name: jre17-pojav
-          path: dl/jre17
-          workflow_conclusion: completed
-
-      - name: Java 21 для Android (arm64)
-        uses: dawidd6/action-download-artifact@v9
-        with:
-          workflow: build.yml
-          repo: AngelAuraMC/angelauramc-openjdk-build
-          branch: buildjre17-21
-          name: jre21-pojav
-          path: dl/jre21
-          workflow_conclusion: completed
+      - name: Java 17 и 21 для Android (arm64) — релизы AngelAuraMC/angelauramc-openjdk-build, SHA-256 вшиты
+        run: |
+          set -euo pipefail
+          mkdir -p dl
+          base=https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download
+          curl -fsSL -o dl/jre17-arm64.tar.xz "$base/download_jre17/jre17-android-arm64.tar.xz"
+          curl -fsSL -o dl/jre21-arm64.tar.xz "$base/download_jre21/jre21-android-arm64.tar.xz"
+          # Хеши из релизов upstream (опубликованы GitHub 04.04.2026). Новая сборка JRE — обновить хеши осознанно.
+          printf "%s  %s
+"             e162c860fe05ee4a4e4af7606437419879f6c748386a7b09fa77d10db6a64091 dl/jre17-arm64.tar.xz             8d41ec401ee59f7722df60ed991f81ad146e130452804bfdd8a05d3436f7bbfe dl/jre21-arm64.tar.xz | sha256sum -c -
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -70,11 +61,7 @@ jobs:
           cp -r vorda_engine/build/repo "$B/repo"
           cp app_pojavlauncher/libs/*.aar "$B/aars/"
           # Из архивов JRE берём только arm64 (имя вида jre17-arm64-*.tar.xz) и называем единообразно.
-          for v in 17 21; do
-            f=$(find dl/jre$v -type f -name "*arm64*.tar.xz" | head -1)
-            test -n "$f" || { echo "Нет arm64 JRE $v"; find dl/jre$v -type f; exit 1; }
-            cp "$f" "$B/assets/engine-runtimes/jre$v-arm64.tar.xz"
-          done
+          cp dl/jre17-arm64.tar.xz dl/jre21-arm64.tar.xz "$B/assets/engine-runtimes/"
           (cd "$B/assets/engine-runtimes" && sha256sum *.tar.xz > SHA256SUMS)   # лаунчер сверяет JRE перед установкой
           echo "$VORDA_ENGINE_VERSION" > "$B/VERSION"
           cp LICENSE "$B/LICENSE-LGPL-3.0.txt"
