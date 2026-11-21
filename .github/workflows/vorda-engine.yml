@@ -42,8 +42,9 @@ jobs:
           curl -fsSL -o dl/jre17-arm64.tar.xz "$base/download_jre17/jre17-android-arm64.tar.xz"
           curl -fsSL -o dl/jre21-arm64.tar.xz "$base/download_jre21/jre21-android-arm64.tar.xz"
           # Хеши из релизов upstream (опубликованы GitHub 04.04.2026). Новая сборка JRE — обновить хеши осознанно.
-          printf "%s  %s
-"             e162c860fe05ee4a4e4af7606437419879f6c748386a7b09fa77d10db6a64091 dl/jre17-arm64.tar.xz             8d41ec401ee59f7722df60ed991f81ad146e130452804bfdd8a05d3436f7bbfe dl/jre21-arm64.tar.xz | sha256sum -c -
+          echo 'e162c860fe05ee4a4e4af7606437419879f6c748386a7b09fa77d10db6a64091  dl/jre17-arm64.tar.xz' > dl/SHA256SUMS
+          echo '8d41ec401ee59f7722df60ed991f81ad146e130452804bfdd8a05d3436f7bbfe  dl/jre21-arm64.tar.xz' >> dl/SHA256SUMS
+          sha256sum -c dl/SHA256SUMS
 
       - uses: gradle/actions/setup-gradle@v4
         with:
