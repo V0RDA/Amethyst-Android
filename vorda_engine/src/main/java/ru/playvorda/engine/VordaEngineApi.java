@@ -160,6 +160,15 @@ public final class VordaEngineApi {
         if (!mali) args.add("-XX:ActiveProcessorCount=" + java.lang.Runtime.getRuntime().availableProcessors());
         args.add("-javaagent:" + new File(Tools.DIR_DATA, "MioLibPatcher/MioLibPatcher.jar").getAbsolutePath());
         args.addAll(gameArgs);
+        // Журнал игры (stdout/stderr JVM) — в engine/latestlog.txt: лаунчер покажет хвост при вылете.
+        try {
+            File log = new File(Tools.DIR_GAME_HOME, "latestlog.txt");
+            if (!log.isFile()) //noinspection ResultOfMethodCallIgnored
+                log.createNewFile();
+            net.kdt.pojavlaunch.Logger.begin(log.getAbsolutePath());
+        } catch (Throwable e) {
+            Log.w(TAG, "log", e);
+        }
         JREUtils.initJavaRuntime(home);
         JREUtils.setupExitMethod(activity.getApplication());
         JREUtils.initializeHooks();
