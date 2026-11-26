@@ -52,7 +52,22 @@ jobs:
 
       - name: Сборка движка (AAR) и Maven-репозиторий
         run: |
-          gradle :vorda_engine:assembleRelease :vorda_engine:publishReleasePublicationToMavenRepository --stacktrace
+          set -o pipefail
+          gradle :vorda_engine:assembleRelease :vorda_engine:publishReleasePublicationToMavenRepository --stacktrace 2>&1 | tee build.log
+
+      # Журналы Actions видны только после входа в GitHub. Причину падения выводим аннотациями —
+      # их отдаёт открытый API (check-runs/<id>/annotations), так лаунчер-разработчик читает их без входа.
+      - name: Причина падения — в аннотации
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          enc() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}'; }
+          wrong=$(awk '/What went wrong/{f=1} f{print} /Try:/{if(f) exit}' build.log | head -60 | cut -c1-300 | enc)
+          errs=$(grep -E '(error:|^e: |\.java:[0-9]+: |Execution failed|Could not (resolve|find|get)|> )' build.log | grep -v '^\s*at ' | head -60 | cut -c1-300 | enc)
+          tail1=$(grep -v '^\s*at ' build.log | tail -70 | cut -c1-300 | enc)
+          echo "::error title=What went wrong::${wrong}"
+          echo "::error title=Errors::${errs}"
+          echo "::error title=Tail::${tail1}"
 
       - name: Пакет vorda-engine-bundle
         run: |
