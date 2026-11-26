@@ -168,6 +168,14 @@ public final class VordaEngineApi {
         return VMLauncher.launchJVM(args.toArray(new String[0]));
     }
 
+    /**
+     * Итог игры (код выхода, сигнал) — вызывается движком прямо перед завершением процесса :game при коде ≠ 0.
+     * При коде 0 процесс завершается через System.exit — лаунчер ловит это обычным shutdown hook.
+     */
+    public static void setExitListener(net.kdt.pojavlaunch.ExitActivity.ExitListener l) {
+        net.kdt.pojavlaunch.ExitActivity.listener = l;
+    }
+
     // ---- ввод (коды клавиш GLFW, как в лаунчере) ----
 
     public static void cursor(float x, float y) {

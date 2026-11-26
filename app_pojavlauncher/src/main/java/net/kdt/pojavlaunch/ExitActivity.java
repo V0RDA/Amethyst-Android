@@ -36,7 +36,23 @@ public class ExitActivity extends AppCompatActivity {
                 .show();
     }
 
+    /** VORDA: лаунчер сам показывает итог игры (окно Amethyst в приложении VORDA не объявлено). */
+    public interface ExitListener {
+        void onExit(int code, boolean isSignal);
+    }
+
+    public static volatile ExitListener listener;
+
     public static void showExitMessage(Context ctx, int code, boolean isSignal) {
+        ExitListener l = listener;
+        if (l != null) {
+            try {
+                l.onExit(code, isSignal);
+            } catch (Throwable ignored) {
+                // процесс всё равно завершается — главное не уронить путь выхода
+            }
+            return;
+        }
         Intent i = new Intent(ctx,ExitActivity.class);
         i.putExtra("code",code);
         i.putExtra("isSignal", isSignal);
