@@ -54,7 +54,7 @@ android {
 
     androidResources {
         // Агент arc_dns_injector (направляет плащи на сторонний адрес) в движок VORDA не входит.
-        ignoreAssetsPatterns += ['!arc_dns_injector']
+        ignoreAssetsPatterns.add('!arc_dns_injector')
     }
 
     compileOptions {
