@@ -44,6 +44,9 @@ android {
             manifest.srcFile 'src/main/AndroidManifest.xml'
             java.srcDirs = ["$upstream/src/main/java", 'src/main/java']
             res.srcDirs = ["$upstream/src/main/res"]
+            // Готовые .so upstream (Turnip libvulkan_freedreno.so для Zink на Adreno, unpack200, слой Vulkan)
+            // и GL4ES (Krypton Wrapper, libng_gl4es.so) — его собирает CI форка из исходников в gl4es-jni.
+            jniLibs.srcDirs = ["$upstream/src/main/jniLibs", 'gl4es-jni']
             assets.srcDirs = ["$upstream/src/main/assets"]
         }
     }
@@ -88,6 +91,12 @@ afterEvaluate {
                 groupId = 'ru.playvorda'
                 artifactId = 'vorda-engine'
                 version = engineVersion
+                // Модуль сборки androidnsbypass в Maven не публикуется, его .so уже внутри AAR —
+                // ссылку на него из POM убираем, иначе лаунчер не разрешает зависимости.
+                pom.withXml {
+                    def deps = asNode().dependencies
+                    if (deps) deps[0].dependency.findAll { it.artifactId.text() == 'androidnsbypass' }.each { deps[0].remove(it) }
+                }
             }
         }
         repositories {

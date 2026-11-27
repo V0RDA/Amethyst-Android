@@ -46,6 +46,20 @@ jobs:
           echo '8d41ec401ee59f7722df60ed991f81ad146e130452804bfdd8a05d3436f7bbfe  dl/jre21-arm64.tar.xz' >> dl/SHA256SUMS
           sha256sum -c dl/SHA256SUMS
 
+      # GL4ES (Krypton Wrapper, BZLZHH/NG-GL4ES, MIT) — готовых сборок нет, собираем из закреплённого коммита
+      # тега R0.4.5. Выход — vorda_engine/gl4es-jni/arm64-v8a/libng_gl4es.so (попадает в AAR движка).
+      - name: GL4ES (Krypton Wrapper) для arm64 из исходников
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          git clone --quiet --branch R0.4.5 --recurse-submodules --shallow-submodules --depth 1 https://github.com/BZLZHH/NG-GL4ES.git ng-gl4es
+          test "$(git -C ng-gl4es rev-parse HEAD)" = "6e153a1622a8d9ef903f7975aafbef2453571bab"
+          cmake -S ng-gl4es -B ng-gl4es/out -DCMAKE_BUILD_TYPE=Release             -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake"             -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON             -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-z,max-page-size=16384" 2>&1 | tee gl4es.log
+          cmake --build ng-gl4es/out --target ng_gl4es -j4 2>&1 | tee -a gl4es.log
+          mkdir -p vorda_engine/gl4es-jni/arm64-v8a
+          cp "$(find ng-gl4es/out -name libng_gl4es.so | head -1)" vorda_engine/gl4es-jni/arm64-v8a/
+          ls -la vorda_engine/gl4es-jni/arm64-v8a
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.1"
@@ -60,7 +74,7 @@ jobs:
       - name: Причина падения — в аннотации
         if: failure()
         run: |
-          [ -f build.log ] || exit 0
+          [ -f build.log ] || { [ -f gl4es.log ] && cp gl4es.log build.log; } || exit 0
           enc() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}'; }
           wrong=$(awk '/What went wrong/{f=1} f{print} /Try:/{if(f) exit}' build.log | head -60 | cut -c1-300 | enc)
           errs=$(grep -E '(error:|^e: |\.java:[0-9]+: |Execution failed|Could not (resolve|find|get)|> )' build.log | grep -v '^\s*at ' | head -60 | cut -c1-300 | enc)
