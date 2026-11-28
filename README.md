@@ -13,8 +13,13 @@ Amethyst is a launcher that allows you to play Minecraft: Java Edition on your A
 
 For more details, check out our [wiki](https://wiki.angelauramc.dev)!
 
+> **VORDA fork.** This fork is the Minecraft: Java Edition engine of the [VORDA](https://playvorda.ru) launcher
+> for Android. It is licensed under GNU LGPL-3.0, like upstream. All VORDA changes live in the `vorda` branch,
+> see [Changes in this fork](#changes-in-this-fork-vorda) below and [VORDA.md](VORDA.md).
+
 ## Table of Contents
 
+* [Changes in this fork (VORDA)](#changes-in-this-fork-vorda)
 * [Introduction](#introduction)
 * [Getting Amethyst](#getting-amethyst)
 * [Building](#building)
@@ -123,6 +128,27 @@ Any code change should be submitted as a pull request. The description should ex
 ## Support
 
 For support, please join our [Discord server](https://discord.gg/5ptqkyZxEy).
+
+## Changes in this fork (VORDA)
+
+Base: upstream [AngelAuraMC/Amethyst-Android](https://github.com/AngelAuraMC/Amethyst-Android), branch `v3_openjdk`,
+commit `166af61` (2026-11-12). License: GNU LGPL-3.0, unchanged. VORDA does not publish the Amethyst app from
+this fork; the engine is used as a library by the VORDA Android launcher.
+
+| Change | Where |
+|---|---|
+| New library module `vorda_engine`: builds the upstream engine (Java, JNI, resources, components) as an AAR without the Amethyst launcher UI and manifest | `vorda_engine/build.gradle`, `vorda_engine/src/main/AndroidManifest.xml`, `settings.gradle` |
+| Narrow launcher API: app-private paths, component unpacking, JRE install, window, input, JVM launch | `vorda_engine/src/main/java/ru/playvorda/engine/VordaEngineApi.java` |
+| JVM arguments are built by the engine only: no user arguments, no `arguments.jvm` from manifests, no `arc_dns_injector` agent; `JAVA_TOOL_OPTIONS` and similar variables are cleared | `VordaEngineApi.launch` |
+| arm64 only; native libraries aligned to 16 KB pages (`APP_SUPPORT_FLEXIBLE_PAGE_SIZES`); GL4ES (Krypton Wrapper R0.4.5) built from source; game log written to `engine/latestlog.txt` | `vorda_engine/build.gradle`, `VordaEngineApi` |
+| `ExitActivity`: optional `ExitListener` so the host launcher can show the game exit result itself | `app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/ExitActivity.java` |
+| `JavaGUILauncherActivity`: `if` instead of `switch` on `R.id` (resource ids are not constants in a library module) | `app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/JavaGUILauncherActivity.java` |
+| CI builds the `vorda-engine-bundle` package (Maven repo, native AARs, JRE 17/21 pinned by SHA-256) instead of the upstream APK workflow | `.github/workflows/vorda-engine.yml` (upstream `android.yml` removed) |
+| Upstream signing keys removed from the fork | `app_pojavlauncher/aamc_upload.jks`, `app_pojavlauncher/debug.keystore` |
+
+Replacing the engine (LGPL-3.0 §4): build `gradle :vorda_engine:publishReleasePublicationToMavenRepository`, put
+`vorda_engine/build/repo` and the native AARs into the launcher's `android/engine/bundle/` and rebuild the launcher.
+The launcher talks to the engine only through `ru.playvorda.engine.VordaEngineApi`; the engine is not obfuscated.
 
 ## License
 

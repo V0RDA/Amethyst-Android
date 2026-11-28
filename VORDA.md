@@ -15,7 +15,7 @@
 | Ключи подписи upstream (`aamc_upload.jks`, `debug.keystore`) удалены из форка | — |
 | CI собирает `vorda-engine-bundle` с контрольными суммами SHA-256 | `.github/workflows/vorda-engine.yml` |
 
-Код upstream в `app_pojavlauncher` не меняется. Приложение Amethyst из этого форка не публикуется.
+В коде upstream в `app_pojavlauncher` изменены только `ExitActivity` (необязательный `ExitListener`, чтобы лаунчер сам показывал итог игры) и `JavaGUILauncherActivity` (`if` вместо `switch` по `R.id`: в модуле-библиотеке это не константы). Приложение Amethyst из этого форка не публикуется.
 
 ## Как заменить движок своей сборкой (LGPL-3.0, §4)
 
